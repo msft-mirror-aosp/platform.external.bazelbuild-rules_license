@@ -16,11 +16,12 @@ load("//:version.bzl", "version")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@rules_pkg//pkg/releasing:defs.bzl", "print_rel_notes")
 
-
 package(
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//visibility:public"],
     default_applicable_licenses = ["//:license"],
 )
+
+licenses(["notice"])
 
 alias(
     name = "distro",
@@ -36,6 +37,7 @@ pkg_tar(
         "//licenses/generic:standard_package",
         "//licenses/spdx:standard_package",
         "//rules:standard_package",
+        "//rules/private:standard_package",
         "//tools:standard_package",
     ],
     extension = "tar.gz",
