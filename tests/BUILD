@@ -1,11 +1,16 @@
-"""Test cases for license rules."""
+# Test cases for license rules.
 
-load("@rules_license//rules:compliance.bzl", "check_license")
+load("@rules_license//rules:compliance.bzl", "check_license", "licenses_used")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
-load("@rules_license//tools:test_helpers.bzl", "golden_test")
 
-package(default_applicable_licenses = [":license"])
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = [
+        "//examples:__subpackages__",
+        "//tests:__subpackages__",
+    ],
+)
 
 # license_kind rules generally appear in a central location per workspace. They
 # are intermingled with normal target build rules
@@ -39,8 +44,16 @@ license(
 license(
     name = "license_for_extra_feature",
     package_name = "A test case package",
-    license = "LICENSE.extra",
     license_kinds = [":generic_restricted_license"],
+    license_text = "LICENSE.extra",
+)
+
+# This license is not in the "compliance" namespace and
+# therefore should not show up in the report verified by
+# :verify_cc_app_test
+license(
+    name = "internal_non_compliance_license",
+    namespace = "test_namespace",
 )
 
 cc_binary(
@@ -53,7 +66,18 @@ cc_binary(
 
 cc_library(
     name = "c_bar",
-    srcs = ["bar.cc"],
+    srcs = [
+        "bar.cc",
+    ],
+    applicable_licenses = [
+        ":license",
+        ":license_for_extra_feature",
+        ":internal_non_compliance_license",
+    ],
+    deps = [
+        "@rules_license//tests/legacy:another_library_with_legacy_license_clause",
+        "@rules_license//tests/legacy:library_with_legacy_license_clause",
+    ],
 )
 
 java_binary(
@@ -63,6 +87,7 @@ java_binary(
     applicable_licenses = [
         ":license_for_extra_feature",
     ],
+    javacopts = ["-Xep:DefaultPackage:OFF"],
     main_class = "Hello",
     deps = [
         ":j_bar",
@@ -72,6 +97,7 @@ java_binary(
 java_library(
     name = "j_bar",
     srcs = ["Bar.java"],
+    javacopts = ["-Xep:DefaultPackage:OFF"],
 )
 
 check_license(
@@ -85,6 +111,31 @@ check_license(
     ],
 )
 
+licenses_used(
+    name = "hello_licenses",
+    out = "hello_licenses.json",
+    deps = [":hello"],
+)
+
+py_test(
+    name = "hello_licenses_test",
+    srcs = ["hello_licenses_test.py"],
+    data = [
+        ":hello_licenses.json",
+        ":hello_cc_copyrights.txt",
+    ],
+    python_version = "PY3",
+    deps = [
+        ":license_test_utils",
+    ],
+)
+
+py_library(
+    name = "license_test_utils",
+    srcs = ["license_test_utils.py"],
+    srcs_version = "PY3",
+)
+
 check_license(
     name = "check_java_app",
     check_conditions = False,
@@ -96,14 +147,16 @@ check_license(
     ],
 )
 
-golden_test(
-    name = "verify_cc_app_test",
-    golden = "hello_cc_copyrights.golden",
-    subject = ":hello_cc_copyrights.txt",
+
+license(
+    name = "license_with_generated_text",
+    license_text = ":created_license",
+    license_kinds = [":generic_notice_license"],
 )
 
-golden_test(
-    name = "verify_java_app_test",
-    golden = "hello_java_copyrights.golden",
-    subject = ":hello_java_copyrights.txt",
+genrule(
+    name = "created_license",
+    outs = ["something.text"],
+    cmd = "echo hello >$@",
 )
+
