@@ -37,16 +37,14 @@
 # of the well known licenses in @rules_license//licenses/spdx:*
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 
-package(
-    default_applicable_licenses = ["//:license"],
-    default_visibility = ["//visibility:public"],
-)
-
-licenses(["notice"])
-
 filegroup(
     name = "standard_package",
     srcs = ["BUILD"],
+)
+
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//visibility:public"],
 )
 
 # "none" should be used for packages which are distributed with no license of
@@ -83,14 +81,6 @@ license_kind(
     name = "reciprocal",
     conditions = [
         "reciprocal",
-    ],
-)
-
-# See: https://opensource.google/docs/thirdparty/licenses/#restricted
-license_kind(
-    name = "restricted",
-    conditions = [
-        "restricted",
     ],
 )
 

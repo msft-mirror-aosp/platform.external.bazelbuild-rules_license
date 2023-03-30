@@ -13,15 +13,11 @@
 # limitations under the License.
 
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_license//rules:package_info.bzl", "package_info")
-load("@rules_license//:version.bzl", "version")
 
 package(
-    default_applicable_licenses = [":license", ":package_info"],
+    default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
 )
-
-licenses(["notice"])
 
 license(
     name = "license",
@@ -31,14 +27,8 @@ license(
     license_text = "LICENSE",
 )
 
-package_info(
-    name = "package_info",
-    package_name = "rules_license",
-    package_version = version,
-)
-
 exports_files(
-    ["LICENSE", "WORKSPACE"],
+    ["WORKSPACE"],
     visibility = ["//visibility:public"],
 )
 
@@ -55,10 +45,8 @@ filegroup(
         "*.bzl",
         "*.md",
     ]) + [
-        "MODULE.bazel",
         "BUILD",
         "LICENSE",
-        "WORKSPACE.bzlmod",
     ],
     visibility = ["//distro:__pkg__"],
 )

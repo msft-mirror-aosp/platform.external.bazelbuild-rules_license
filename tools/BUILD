@@ -15,19 +15,9 @@
 """License declaration and compliance checking tools."""
 
 package(
-    default_applicable_licenses = ["//:license", "//:package_info"],
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//visibility:public"],
 )
-
-licenses(["notice"])
-
-filegroup(
-    name = "standard_package",
-    srcs = glob(["**"]),
-    visibility = ["//distro:__pkg__"],
-)
-
-exports_files(["diff_test.sh"])
 
 py_binary(
     name = "checker_demo",
@@ -36,9 +26,10 @@ py_binary(
     visibility = ["//visibility:public"],
 )
 
-py_binary(
-    name = "write_sbom",
-    srcs = ["write_sbom.py"],
-    python_version = "PY3",
-    visibility = ["//visibility:public"],
+exports_files(["diff_test.sh"])
+
+filegroup(
+    name = "standard_package",
+    srcs = glob(["**"]),
+    visibility = ["//distro:__pkg__"],
 )

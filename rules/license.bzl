@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,42 +11,53 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Rules for declaring the compliance licenses used by a package.
 
-"""
+"""Rules for declaring the licenses used by a package."""
 
 load(
     "@rules_license//rules:providers.bzl",
+    "LicenseInfo",
     "LicenseKindInfo",
 )
-load(
-    "@rules_license//rules:license_impl.bzl",
-    "license_rule_impl",
-)
 
-# Enable this if your organization requires the license text to be a file
-# checked into source control instead of, possibly, another rule.
-_require_license_text_is_a_file = False
+# Debugging verbosity
+_VERBOSITY = 0
 
-# This rule must be named "_license" for backwards compatability with older
-# or Bazel that checked that name explicitly. See
-# https://github.com/bazelbuild/bazel/commit/bbc221f60bc8c9177470529d85c3e47a5d9aaf21
-# TODO(after bazel 7.0 release): Feel free to rename the rule and move.
+def _debug(loglevel, msg):
+    if _VERBOSITY > loglevel:
+        print(msg)  # buildifier: disable=print
+
+#
+# license()
+#
+
+def _license_impl(ctx):
+    provider = LicenseInfo(
+        license_kinds = tuple([k[LicenseKindInfo] for k in ctx.attr.license_kinds]),
+        copyright_notice = ctx.attr.copyright_notice,
+        package_name = ctx.attr.package_name,
+        package_url = ctx.attr.package_url,
+        package_version = ctx.attr.package_version,
+        license_text = ctx.file.license_text,
+        rule = ctx.label,
+    )
+    _debug(0, provider)
+    return [provider]
+
 _license = rule(
-    implementation = license_rule_impl,
+    implementation = _license_impl,
     attrs = {
+        "copyright_notice": attr.string(
+            doc = "Copyright notice.",
+        ),
         "license_kinds": attr.label_list(
-            mandatory = False,
+            mandatory = True,
             doc = "License kind(s) of this license. If multiple license kinds are" +
                   " listed in the LICENSE file, and they all apply, then all" +
                   " should be listed here. If the user can choose a single one" +
                   " of many, then only list one here.",
             providers = [LicenseKindInfo],
-            # This should be the null configuration, not the exec.
             cfg = "exec",
-        ),
-        "copyright_notice": attr.string(
-            doc = "Copyright notice.",
         ),
         "license_text": attr.label(
             allow_single_file = True,
@@ -69,71 +80,51 @@ _license = rule(
                   " by an applicatation.  It should be a value that" +
                   " increases over time, rather than a commit hash."
         ),
-        "namespace": attr.string(
-            doc = "A human readable name used to organize licenses into categories." +
-                  " This is used in google3 to differentiate third party licenses used" +
-                  " for compliance versus internal licenses used by SLAsan for internal" +
-                  " teams' SLAs.",
-        ),
     },
 )
 
 # buildifier: disable=function-docstring-args
-def license(
-        name,
-        license_text = "LICENSE",
-        license_kind = None,
-        license_kinds = None,
-        copyright_notice = None,
-        package_name = None,
-        package_url = None,
-        package_version = None,
-        namespace = "compliance",
-        tags = [],
-        visibility = ["//visibility:public"]):
+def license(name,
+            copyright_notice = None,
+            license_kinds = None,
+            license_text = None,
+            package_name = None,
+            package_url = None,
+            package_version = None,
+            tags = None,
+            **kwargs):
     """Wrapper for license rule.
-
-    @wraps(_license)
 
     Args:
       name: str target name.
-      license_text: str Filename of the license file
-      license_kind: label a single license_kind. Only one of license_kind or license_kinds may
-                    be specified
       license_kinds: list(label) list of license_kind targets.
+      license_kind: label a single license_kind. Only one of license_kind or
+                    license_kinds may be specified
       copyright_notice: str Copyright notice associated with this package.
       package_name: str A human readable name identifying this package. This
                     may be used to produce an index of OSS packages used by
-                    an application.
-      package_url: str The canonical URL this package was downloaded from.
-      package_version: str The version corresponding the the URL.
-      namespace: str Undocumened. Internal.
-      tags: list(str) tags applied to the rule
-      visibility: list(label) visibility spec.
+                    an applicatation.
+      package_url: The URL this instance was downloaded from.
+      package_version: The version number of this package. This should be a
+                       value that increases over time, rather than a commit
+                       hash.
+      kwargs: Other things may be specified, but they are explicitly ignored.
     """
-    if license_kind:
+    single_kind = kwargs.pop("license_kind", default = None)
+    if single_kind:
         if license_kinds:
             fail("Can not use both license_kind and license_kinds")
-        license_kinds = [license_kind]
-
-    if _require_license_text_is_a_file:
-        # Make sure the file exists as named in the rule. A glob expression that
-        # expands to the name of the file is not acceptable.
-        srcs = native.glob([license_text])
-        if len(srcs) != 1 or srcs[0] != license_text:
-            fail("Specified license file doesn't exist: %s" % license_text)
-
+        license_kinds = [single_kind]
+    tags = tags or []
     _license(
         name = name,
         license_kinds = license_kinds,
-        license_text = license_text,
+        license_text = license_text or "LICENSE",
         copyright_notice = copyright_notice,
         package_name = package_name,
         package_url = package_url,
         package_version = package_version,
-        namespace = namespace,
         applicable_licenses = [],
-        visibility = visibility,
         tags = tags,
-        testonly = 0,
+        visibility = ["//visibility:public"],
     )

@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 #include <iostream>
 
-extern const char* server_message;
-
 int main(int argc, char* argv[]) {
-  std::cout << server_message << std::endl;
-  return 0;
+  std::cout << "Hello world" << std::endl;
 }

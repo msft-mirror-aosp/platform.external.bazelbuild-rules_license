@@ -23,18 +23,13 @@ import codecs
 import json
 
 # Conditions allowed for all applications
-_ALWAYS_ALLOWED_CONDITIONS = frozenset(['notice', 'permissive', 'unencumbered'])
+_ALWAYS_ALLOWED_CONDITIONS = frozenset(['notice', 'permissive', 'unencumberd'])
 
 
-def _load_license_data(licenses_info):
+def _get_licenses(licenses_info):
   with codecs.open(licenses_info, encoding='utf-8') as licenses_file:
     return json.loads(licenses_file.read())
 
-
-def unique_licenses(licenses):
-  for target in licenses:
-    for lic in target.get('licenses') or []:
-      yield lic
 
 def _do_report(out, licenses):
   """Produce a report showing the set of licenses being used.
@@ -46,14 +41,11 @@ def _do_report(out, licenses):
   Returns:
     0 for no restricted licenses.
   """
-
-  for target in unique_licenses(licenses):
-    for lic in target.get('licenses') or []:
-      print("lic:", lic)
-      rule = lic['rule']
-      for kind in lic['license_kinds']:
-        out.write('= %s\n  kind: %s\n' % (rule, kind['target']))
-        out.write('  conditions: %s\n' % kind['conditions'])
+  for lic in licenses:  # using strange name lic because license is built-in
+    rule = lic['rule']
+    for kind in lic['license_kinds']:
+      out.write('= %s\n  kind: %s\n' % (rule, kind['target']))
+      out.write('  conditions: %s\n' % kind['conditions'])
 
 
 def _check_conditions(out, licenses, allowed_conditions):
@@ -94,7 +86,7 @@ def _do_copyright_notices(out, licenses):
 
 
 def _do_licenses(out, licenses):
-  for lic in unique_licenses(licenses):
+  for lic in licenses:
     path = lic['license_text']
     with codecs.open(path, encoding='utf-8') as license_file:
       out.write('= %s\n' % path)
@@ -115,13 +107,7 @@ def main():
                       help='check that the dep only includes allowed license conditions')
   args = parser.parse_args()
 
-  license_data = _load_license_data(args.licenses_info)
-  target = license_data[0]  # we assume only one target for the demo
-
-  top_level_target = target['top_level_target']
-  dependencies = target['dependencies']
-  licenses = target['licenses']
-
+  licenses = _get_licenses(args.licenses_info)
   err = 0
   with codecs.open(args.report, mode='w', encoding='utf-8') as rpt:
     _do_report(rpt, licenses)

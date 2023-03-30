@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Proof of concept. License restriction."""
+"""license_policy rule.
 
-load("@rules_license//rules:providers.bzl", "LicenseKindInfo")
+A license_policy names a set of conditions allowed in the union of all
+license_kinds use by a target. The name of the rule is typically an
+application type (e.g. production_server, mobile_application, ...)
 
-#
-# License Kind: The declaration of a well known category of license, for example,
-# Apache, MIT, LGPL v2. An organization may also declare its own license kinds
-# that it may user privately.
-#
+"""
 
-def _license_kind_impl(ctx):
-    provider = LicenseKindInfo(
+load("@rules_license//rules:license_policy_provider.bzl", "LicensePolicyInfo")
+
+def _license_policy_impl(ctx):
+    provider = LicensePolicyInfo(
         name = ctx.attr.name,
         label = "@%s//%s:%s" % (
             ctx.label.workspace_name,
@@ -34,27 +34,20 @@ def _license_kind_impl(ctx):
     )
     return [provider]
 
-_license_kind = rule(
-    implementation = _license_kind_impl,
+_license_policy = rule(
+    implementation = _license_policy_impl,
     attrs = {
-        "canonical_text": attr.label(
-            doc = "File containing the canonical text for this license. Must be UTF-8 encoded.",
-            allow_single_file = True,
-        ),
         "conditions": attr.string_list(
             doc = "Conditions to be met when using software under this license." +
                   "  Conditions are defined by the organization using this license.",
             mandatory = True,
         ),
-        "url": attr.string(doc = "URL pointing to canonical license definition"),
     },
 )
 
-def license_kind(name, **kwargs):
-    if "conditions" not in kwargs:
-        kwargs["conditions"] = []
-    _license_kind(
+def license_policy(name, conditions):
+    _license_policy(
         name = name,
+        conditions = conditions,
         applicable_licenses = [],
-        **kwargs
     )
