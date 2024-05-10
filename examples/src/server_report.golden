@@ -1,3 +1,0 @@
-= @rules_license//examples/vendor/constant_gen:license_for_emitted_code
-  kind: @@rules_license//examples/my_org/licenses:unencumbered
-  conditions: []
