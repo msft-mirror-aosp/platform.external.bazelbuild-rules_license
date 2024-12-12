@@ -15,7 +15,7 @@
 # limitations under the License.
 """Rules for making license declarations."""
 
-load("@rules_license//rules:licenses_core.bzl", "trace")
+load("@rules_license//rules_gathering:trace.bzl", "trace")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -35,7 +35,10 @@ trace(
 
 filegroup(
     name = "standard_package",
-    srcs = glob(["**"]),
+    srcs = glob([
+        "**/BUILD",
+        "**/*.bzl",
+    ]),
 )
 
 # Do not create a bzl_library(). That would create a dependency loop back
