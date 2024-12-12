@@ -11,60 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""License compliance checking."""
+"""SBOM generation"""
 
 load(
-    "@rules_license//rules:gather_licenses_info.bzl",
-    "gather_licenses_info",
-    "gather_licenses_info_and_write",
-    "write_licenses_info",
+    "@rules_license//rules_gathering:gather_metadata.bzl",
+    "gather_metadata_info",
+    "gather_metadata_info_and_write",
+    "write_metadata_info",
 )
 load(
     "@rules_license//rules_gathering:gathering_providers.bzl",
     "TransitiveLicensesInfo",
 )
 
-# Forward licenses used until users migrate. Delete at 0.0.7 or 0.1.0.
-load(
-    "@rules_license//sample_reports:licenses_used.bzl",
-    _licenses_used = "licenses_used",
-)
-
-licenses_used = _licenses_used
-
 # This rule is proof of concept, and may not represent the final
 # form of a rule for compliance validation.
-def _check_license_impl(ctx):
+def _generate_sbom_impl(ctx):
     # Gather all licenses and write information to one place
 
     licenses_file = ctx.actions.declare_file("_%s_licenses_info.json" % ctx.label.name)
-    write_licenses_info(ctx, ctx.attr.deps, licenses_file)
+    write_metadata_info(ctx, ctx.attr.deps, licenses_file)
 
-    license_files = []
-    if ctx.outputs.license_texts:
-        license_files = get_licenses_mapping(ctx.attr.deps).keys()
-
-    # Now run the checker on it
+    # Now turn the big blob of data into something consumable.
     inputs = [licenses_file]
-    outputs = [ctx.outputs.report]
+    outputs = [ctx.outputs.out]
     args = ctx.actions.args()
     args.add("--licenses_info", licenses_file.path)
-    args.add("--report", ctx.outputs.report.path)
-    if ctx.attr.check_conditions:
-        args.add("--check_conditions")
-    if ctx.outputs.copyright_notices:
-        args.add("--copyright_notices", ctx.outputs.copyright_notices.path)
-        outputs.append(ctx.outputs.copyright_notices)
-    if ctx.outputs.license_texts:
-        args.add("--license_texts", ctx.outputs.license_texts.path)
-        outputs.append(ctx.outputs.license_texts)
-        inputs.extend(license_files)
+    args.add("--out", ctx.outputs.out.path)
     ctx.actions.run(
-        mnemonic = "CheckLicenses",
-        progress_message = "Checking license compliance for %s" % ctx.label,
+        mnemonic = "CreateSBOM",
+        progress_message = "Creating SBOM for %s" % ctx.label,
         inputs = inputs,
         outputs = outputs,
-        executable = ctx.executable._checker,
+        executable = ctx.executable._sbom_generator,
         arguments = [args],
     )
     return [
@@ -72,18 +51,15 @@ def _check_license_impl(ctx):
         OutputGroupInfo(licenses_file = depset([licenses_file])),
     ]
 
-_check_license = rule(
-    implementation = _check_license_impl,
+_generate_sbom = rule(
+    implementation = _generate_sbom_impl,
     attrs = {
         "deps": attr.label_list(
-            aspects = [gather_licenses_info],
+            aspects = [gather_metadata_info],
         ),
-        "check_conditions": attr.bool(default = True, mandatory = False),
-        "copyright_notices": attr.output(mandatory = False),
-        "license_texts": attr.output(mandatory = False),
-        "report": attr.output(mandatory = True),
-        "_checker": attr.label(
-            default = Label("@rules_license//tools:checker_demo"),
+        "out": attr.output(mandatory = True),
+        "_sbom_generator": attr.label(
+            default = Label("@rules_license//tools:write_sbom"),
             executable = True,
             allow_files = True,
             cfg = "exec",
@@ -91,9 +67,8 @@ _check_license = rule(
     },
 )
 
-# TODO(b/152546336): Update the check to take a pointer to a condition list.
-def check_license(**kwargs):
-    _check_license(**kwargs)
+def generate_sbom(**kwargs):
+    _generate_sbom(**kwargs)
 
 def _manifest_impl(ctx):
     # Gather all licenses and make it available as deps for downstream rules
@@ -113,7 +88,7 @@ _manifest = rule(
     attrs = {
         "deps": attr.label_list(
             doc = """List of targets to collect license files for.""",
-            aspects = [gather_licenses_info],
+            aspects = [gather_metadata_info],
         ),
         "out": attr.output(
             doc = """Output file.""",
@@ -157,6 +132,7 @@ def get_licenses_mapping(deps, warn = False):
         if type(lic.license_text) == "File":
             mappings[lic.license_text] = lic.package_name
         elif warn:
+            # buildifier: disable=print
             print("Legacy license %s not included, rule needs updating" % lic.license_text)
 
     return mappings
