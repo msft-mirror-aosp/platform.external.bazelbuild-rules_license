@@ -20,7 +20,7 @@ How to:
 """
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@io_bazel_stardoc//stardoc:stardoc.bzl", "stardoc")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 load("@rules_python//python:defs.bzl", "py_library")
 load("//:version.bzl", "version")
 
@@ -59,6 +59,9 @@ ORDER = [
     ("LicenseInfo",     "//rules:providers.bzl"),
     ("LicenseKindInfo", "//rules:providers.bzl"),
     ("PackageInfo",     "//rules:providers.bzl"),
+    ("gather_metadata_info",           "//rules_gathering:gather_metadata.bzl"),
+    ("gather_metadata_info_and_write", "//rules_gathering:gather_metadata.bzl"),
+    ("trace",           "//rules_gathering:trace.bzl"),
 ]
 
 genrule(
@@ -89,8 +92,7 @@ bzl_library(
     srcs = [
         "//:version.bzl",
         "//rules:standard_package",
-        "//rules/private:standard_package",
-        # "@bazel_skylib//lib:paths",
+        "//rules_gathering:standard_package",
     ],
     visibility = ["//visibility:public"],
 )
