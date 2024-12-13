@@ -1,3 +1,5 @@
+# BUILD file defining reference implementations for reporting tools
+#
 # Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,15 +13,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Forwarder for gather_metadata_info.
+"""Rules for making license declarations."""
 
-To be deleted before version 0.1.0
-"""
-load(
-    "@rules_license//rules_gathering:gather_metadata.bzl",
-    _gather_metadata_info = "gather_metadata_info",
-    _gather_metadata_info_and_write = "gather_metadata_info_and_write",
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//visibility:public"],
 )
 
-gather_metadata_info = _gather_metadata_info
-gather_metadata_info_and_write = _gather_metadata_info_and_write
+licenses(["notice"])
+
+filegroup(
+    name = "standard_package",
+    srcs = glob(["**"]),
+)
+
+# Do not create a bzl_library(). That would create a dependency loop back
+# to bazel-skylib. We export the .bzl files to the documentation maker.
+exports_files(
+    glob([
+        "*.bzl",
+    ]),
+    visibility = ["//doc_build:__pkg__"],
+)
