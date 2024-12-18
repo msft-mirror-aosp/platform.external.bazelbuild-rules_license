@@ -1,8 +1,9 @@
 # Test cases for license rules.
 
-load("@rules_license//rules:compliance.bzl", "check_license", "licenses_used")
+load("@rules_license//rules:compliance.bzl", "check_license")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_license//sample_reports:licenses_used.bzl", "licenses_used")
 
 package(
     default_applicable_licenses = [":license"],
@@ -48,14 +49,6 @@ license(
     license_text = "LICENSE.extra",
 )
 
-# This license is not in the "compliance" namespace and
-# therefore should not show up in the report verified by
-# :verify_cc_app_test
-license(
-    name = "internal_non_compliance_license",
-    namespace = "test_namespace",
-)
-
 cc_binary(
     name = "hello",
     srcs = ["hello.cc"],
@@ -72,7 +65,6 @@ cc_library(
     applicable_licenses = [
         ":license",
         ":license_for_extra_feature",
-        ":internal_non_compliance_license",
     ],
     deps = [
         "@rules_license//tests/legacy:another_library_with_legacy_license_clause",
