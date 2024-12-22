@@ -19,8 +19,13 @@ load(
     "should_traverse",
 )
 load(
+    "@rules_license//rules:providers.bzl",
+    "ExperimentalMetadataInfo",
+    "PackageInfo",
+)
+load(
     "@rules_license//rules_gathering:gathering_providers.bzl",
-    "TransitiveLicensesInfo",
+    "TransitiveMetadataInfo",
 )
 load("@rules_license//rules_gathering:trace.bzl", "TraceInfo")
 
@@ -36,21 +41,30 @@ def _strip_null_repo(label):
         return s[2:]
     return s
 
-def _gather_licenses_info_impl(target, ctx):
-    return gather_metadata_info_common(target, ctx, TransitiveLicensesInfo, [], should_traverse)
+def _bazel_package(label):
+    clean_label = _strip_null_repo(label)
+    return clean_label[0:-(len(label.name) + 1)]
 
-gather_licenses_info = aspect(
-    doc = """Collects LicenseInfo providers into a single TransitiveLicensesInfo provider.""",
-    implementation = _gather_licenses_info_impl,
+def _gather_metadata_info_impl(target, ctx):
+    return gather_metadata_info_common(
+        target,
+        ctx,
+        TransitiveMetadataInfo,
+        [ExperimentalMetadataInfo, PackageInfo],
+        should_traverse)
+
+gather_metadata_info = aspect(
+    doc = """Collects LicenseInfo providers into a single TransitiveMetadataInfo provider.""",
+    implementation = _gather_metadata_info_impl,
     attr_aspects = ["*"],
     attrs = {
         "_trace": attr.label(default = "@rules_license//rules:trace_target"),
     },
-    provides = [TransitiveLicensesInfo],
+    provides = [TransitiveMetadataInfo],
     apply_to_generating_rules = True,
 )
 
-def _write_licenses_info_impl(target, ctx):
+def _write_metadata_info_impl(target, ctx):
     """Write transitive license info into a JSON file
 
     Args:
@@ -61,9 +75,9 @@ def _write_licenses_info_impl(target, ctx):
       OutputGroupInfo
     """
 
-    if not TransitiveLicensesInfo in target:
+    if not TransitiveMetadataInfo in target:
         return [OutputGroupInfo(licenses = depset())]
-    info = target[TransitiveLicensesInfo]
+    info = target[TransitiveMetadataInfo]
     outs = []
 
     # If the result doesn't contain licenses, we simply return the provider
@@ -71,9 +85,8 @@ def _write_licenses_info_impl(target, ctx):
         return [OutputGroupInfo(licenses = depset())]
 
     # Write the output file for the target
-    name = "%s_licenses_info.json" % ctx.label.name
-    lic_info, _ = licenses_info_to_json(info)
-    content = "[\n%s\n]\n" % ",\n".join(lic_info)
+    name = "%s_metadata_info.json" % ctx.label.name
+    content = "[\n%s\n]\n" % ",\n".join(metadata_info_to_json(info))
     out = ctx.actions.declare_file(name)
     ctx.actions.write(
         output = out,
@@ -88,90 +101,72 @@ def _write_licenses_info_impl(target, ctx):
 
     return [OutputGroupInfo(licenses = depset(outs))]
 
-gather_licenses_info_and_write = aspect(
-    doc = """Collects TransitiveLicensesInfo providers and writes JSON representation to a file.
+gather_metadata_info_and_write = aspect(
+    doc = """Collects TransitiveMetadataInfo providers and writes JSON representation to a file.
 
     Usage:
-      blaze build //some:target \
-          --aspects=@rules_license//rules:gather_licenses_info.bzl%gather_licenses_info_and_write
+      bazel build //some:target \
+          --aspects=@rules_license//rules_gathering:gather_metadata.bzl%gather_metadata_info_and_write
           --output_groups=licenses
     """,
-    implementation = _write_licenses_info_impl,
+    implementation = _write_metadata_info_impl,
     attr_aspects = ["*"],
     attrs = {
         "_trace": attr.label(default = "@rules_license//rules:trace_target"),
     },
     provides = [OutputGroupInfo],
-    requires = [gather_licenses_info],
+    requires = [gather_metadata_info],
     apply_to_generating_rules = True,
 )
 
-def write_licenses_info(ctx, deps, json_out):
-    """Writes TransitiveLicensesInfo providers for a set of targets as JSON.
+def write_metadata_info(ctx, deps, json_out):
+    """Writes TransitiveMetadataInfo providers for a set of targets as JSON.
 
     TODO(aiuto): Document JSON schema. But it is under development, so the current
     best place to look is at tests/hello_licenses.golden.
 
     Usage:
-      write_licenses_info must be called from a rule implementation, where the
-      rule has run the gather_licenses_info aspect on its deps to
+      write_metadata_info must be called from a rule implementation, where the
+      rule has run the gather_metadata_info aspect on its deps to
       collect the transitive closure of LicenseInfo providers into a
       LicenseInfo provider.
 
       foo = rule(
         implementation = _foo_impl,
         attrs = {
-           "deps": attr.label_list(aspects = [gather_licenses_info])
+           "deps": attr.label_list(aspects = [gather_metadata_info])
         }
       )
 
       def _foo_impl(ctx):
         ...
-        json_file = ctx.actions.declare_file("%s_licenses.json" % ctx.label.name)
-        license_files = write_licenses_info(ctx, ctx.attr.deps, json_file)
-
-        // process the json file and the license_files referenced by it
-        ctx.actions.run(
-          inputs = [json_file] + license_files
-          executable = ...
-        )
+        out = ctx.actions.declare_file("%s_licenses.json" % ctx.label.name)
+        write_metadata_info(ctx, ctx.attr.deps, metadata_file)
 
     Args:
       ctx: context of the caller
-      deps: a list of deps which should have TransitiveLicensesInfo providers.
-            This requires that you have run the gather_licenses_info
+      deps: a list of deps which should have TransitiveMetadataInfo providers.
+            This requires that you have run the gather_metadata_info
             aspect over them
       json_out: output handle to write the JSON info
-
-    Returns:
-      A list of License File objects for each of the license paths referenced in the json.
     """
-    licenses_json = []
-    licenses_files = []
+    licenses = []
     for dep in deps:
-        if TransitiveLicensesInfo in dep:
-            transitive_licenses_info = dep[TransitiveLicensesInfo]            
-            lic_info, _ = licenses_info_to_json(transitive_licenses_info)
-            licenses_json.extend(lic_info)
-            for info in transitive_licenses_info.licenses.to_list():
-                if info.license_text:
-                    licenses_files.append(info.license_text)
-
+        if TransitiveMetadataInfo in dep:
+            licenses.extend(metadata_info_to_json(dep[TransitiveMetadataInfo]))
     ctx.actions.write(
         output = json_out,
-        content = "[\n%s\n]\n" % ",\n".join(licenses_json),
+        content = "[\n%s\n]\n" % ",\n".join(licenses),
     )
-    return licenses_files
 
-def licenses_info_to_json(licenses_info):
+def metadata_info_to_json(metadata_info):
     """Render a single LicenseInfo provider to JSON
 
     Args:
-      licenses_info: A LicenseInfo.
+      metadata_info: A LicenseInfo.
 
     Returns:
       [(str)] list of LicenseInfo values rendered as JSON.
-      [(File)] list of Files containing license texts.
     """
 
     main_template = """  {{
@@ -179,6 +174,8 @@ def licenses_info_to_json(licenses_info):
     "dependencies": [{dependencies}
     ],
     "licenses": [{licenses}
+    ],
+    "packages": [{packages}
     ]\n  }}"""
 
     dep_template = """
@@ -189,11 +186,10 @@ def licenses_info_to_json(licenses_info):
         ]
       }}"""
 
-    # TODO(aiuto): 'rule' is a duplicate of 'label' until old users are transitioned
     license_template = """
       {{
         "label": "{label}",
-        "rule": "{label}",
+        "bazel_package": "{bazel_package}",
         "license_kinds": [{kinds}
         ],
         "copyright_notice": "{copyright_notice}",
@@ -210,13 +206,22 @@ def licenses_info_to_json(licenses_info):
           {{
             "target": "{kind_path}",
             "name": "{kind_name}",
-            "long_name": "{kind_long_name}",
             "conditions": {kind_conditions}
+          }}"""
+
+    package_info_template = """
+          {{
+            "target": "{label}",
+            "bazel_package": "{bazel_package}",
+            "package_name": "{package_name}",
+            "package_url": "{package_url}",
+            "package_version": "{package_version}",
+            "purl": "{purl}"
           }}"""
 
     # Build reverse map of license to user
     used_by = {}
-    for dep in licenses_info.deps.to_list():
+    for dep in metadata_info.deps.to_list():
         # Undo the concatenation applied when stored in the provider.
         dep_licenses = dep.licenses.split(",")
         for license in dep_licenses:
@@ -225,17 +230,11 @@ def licenses_info_to_json(licenses_info):
             used_by[license].append(_strip_null_repo(dep.target_under_license))
 
     all_licenses = []
-    all_license_text_files = []
-    for license in sorted(licenses_info.licenses.to_list(), key = lambda x: x.label):
+    for license in sorted(metadata_info.licenses.to_list(), key = lambda x: x.label):
         kinds = []
         for kind in sorted(license.license_kinds, key = lambda x: x.name):
-            if hasattr(kind, "long_name"):
-                long_name = kind.long_name
-            else:
-                long_name = ""
             kinds.append(kind_template.format(
                 kind_name = kind.name,
-                kind_long_name = long_name,
                 kind_path = kind.label,
                 kind_conditions = kind.conditions,
             ))
@@ -251,14 +250,12 @@ def licenses_info_to_json(licenses_info):
                 package_url = license.package_url,
                 package_version = license.package_version,
                 label = _strip_null_repo(license.label),
+                bazel_package =  _bazel_package(license.label),
                 used_by = ",\n          ".join(sorted(['"%s"' % x for x in used_by[str(license.label)]])),
             ))
-            # Additionally return all File references so that other rules invoking
-            # this method can load license text file contents from external repos
-            # using runfiles
-            all_license_text_files.append(license.license_text)
+
     all_deps = []
-    for dep in sorted(licenses_info.deps.to_list(), key = lambda x: x.target_under_license):
+    for dep in sorted(metadata_info.deps.to_list(), key = lambda x: x.target_under_license):
         # Undo the concatenation applied when stored in the provider.
         dep_licenses = dep.licenses.split(",")
         all_deps.append(dep_template.format(
@@ -266,8 +263,46 @@ def licenses_info_to_json(licenses_info):
             licenses = ",\n          ".join(sorted(['"%s"' % _strip_null_repo(x) for x in dep_licenses])),
         ))
 
+    all_packages = []
+    # We would use this if we had distinct depsets for every provider type.
+    #for package in sorted(metadata_info.package_info.to_list(), key = lambda x: x.label):
+    #    all_packages.append(package_info_template.format(
+    #        label = _strip_null_repo(package.label),
+    #        package_name = package.package_name,
+    #        package_url = package.package_url,
+    #        package_version = package.package_version,
+    #    ))
+
+    for mi in sorted(metadata_info.other_metadata.to_list(), key = lambda x: x.label):
+        # Maybe use a map of provider class to formatter.  A generic dict->json function
+        # in starlark would help
+
+        # This format is for using distinct providers.  I like the compile time safety.
+        if mi.type == "package_info":
+            all_packages.append(package_info_template.format(
+                label = _strip_null_repo(mi.label),
+                bazel_package =  _bazel_package(mi.label),
+                package_name = mi.package_name,
+                package_url = mi.package_url,
+                package_version = mi.package_version,
+                purl = mi.purl,
+            ))
+        # experimental: Support the ExperimentalMetadataInfo bag of data
+        # WARNING: Do not depend on this. It will change without notice.
+        if mi.type == "package_info_alt":
+            all_packages.append(package_info_template.format(
+                label = _strip_null_repo(mi.label),
+                bazel_package =  _bazel_package(mi.label),
+                # data is just a bag, so we need to use get() or ""
+                package_name = mi.data.get("package_name") or "",
+                package_url = mi.data.get("package_url") or "",
+                package_version = mi.data.get("package_version") or "",
+                purl = mi.data.get("purl") or "",
+            ))
+
     return [main_template.format(
-        top_level_target = _strip_null_repo(licenses_info.target_under_license),
+        top_level_target = _strip_null_repo(metadata_info.target_under_license),
         dependencies = ",".join(all_deps),
         licenses = ",".join(all_licenses),
-    )], all_license_text_files
+        packages = ",".join(all_packages),
+    )]
